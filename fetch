@@ -1,0 +1,60 @@
+#!/bin/sh
+#
+#
+
+configfile=~/.fetch.conf
+tmpdir=/tmp
+install_command=/usr/bin/install
+curl_command="/usr/bin/curl -LO"
+
+die() {
+    echo ERROR:\ $* >&2
+    exit 1
+}
+
+# parse some arguments
+case $* in
+    -r|--remove)
+	shift
+	command='rm -f'
+	;;
+    -t|--tmpdir)
+	shift
+	tmpdir=`shift`
+	;;
+    -d|--dryrun)
+	shift
+	command="echo $command"
+	;;
+esac	    
+
+# anything else in $* is junk, so...
+if [ -n "$*" ]; then
+    die illegal command-line option $*
+fi
+
+
+echo do we have enough space in tmpdir, $tmpdir?
+df -h $tmpdir
+
+echo can we write to it?
+touch $tmpdir/file || die can\'t write to $tmpdir
+
+echo are we ready to replace the following?
+while read thing url to 
+do
+    md5sum $to/$thing
+done < $configfile
+
+readline -p "Type 'yes' to continue:" conn
+case $conn in
+    yes|Yes|YES)
+	while read thing url to 
+	do
+	    $curl_command -O$tmpdir/$thing $url
+	    $install_command $tmpdir/$thing $to/$thing
+	done < $configfile
+	;;
+    *)
+esac
+    
