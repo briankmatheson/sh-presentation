@@ -18,6 +18,17 @@ die() {
     exit 1
 }
 
+unpack() {
+    file=$1
+    base=$2
+    
+    file $file |grep gzip && mv $file $file.gz && gzip -d $file.gz
+    file $file |grep tar && mv $file $file.tar && tar xf $file.tar
+    thing=`find ./ -name $base | head -1`
+    file $thing | grep ELF && cp $thing $tmpdir/$base
+}
+	
+
 mkdir -p $tmpdir
 trap "rm -rf $tmpdir" EXIT
 cd $tmpdir
@@ -72,7 +83,9 @@ case $conn in
 	    if [ -n "$rm_command" ]; then
 		$rm_command $to/$thing
 	    else
-	        $install_command $tmpdir/$thing $to/$thing
+		base=`basename $thing`
+		unpack $tmpdir/$thing $base
+	        $install_command $tmpdir/$base $to/$base
 	    fi
 	done < $configfile
 	;;
