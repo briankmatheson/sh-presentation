@@ -3,28 +3,40 @@
 #
 
 configfile=~/.fetch.conf
-tmpdir=/tmp
-install_command=/usr/bin/install
-curl_command="/usr/bin/curl -LO"
+tmpdir=/tmp/$0-$$
+install_command="sudo /usr/bin/install"
+curl_command="/usr/bin/curl -L"
+
+usage() {
+    echo
+    echo "Usage: $0 [-r|-t TMPDIR ]"
+    echo 
+}
 
 die() {
     echo ERROR:\ $* >&2
     exit 1
 }
 
+mkdir -p $tmpdir
+trap "rm -rf $tmpdir" EXIT
+cd $tmpdir
+
+
 # parse some arguments
 case $* in
     -r|--remove)
 	shift
-	command='rm -f'
+	rm_command='rm -f'
 	;;
     -t|--tmpdir)
 	shift
 	tmpdir=`shift`
 	;;
-    -d|--dryrun)
+    -h|--help)
 	shift
-	command="echo $command"
+	usage
+	exit 0
 	;;
 esac	    
 
@@ -32,7 +44,6 @@ esac
 if [ -n "$*" ]; then
     die illegal command-line option $*
 fi
-
 
 echo do we have enough space in tmpdir, $tmpdir?
 df -h $tmpdir
@@ -43,16 +54,26 @@ touch $tmpdir/file || die can\'t write to $tmpdir
 echo are we ready to replace the following?
 while read thing url to 
 do
+    if [ -z "$thing" ]; then
+	continue
+    fi
     md5sum $to/$thing
 done < $configfile
 
-readline -p "Type 'yes' to continue:" conn
+read -p "Type 'yes' to continue: " conn
 case $conn in
     yes|Yes|YES)
 	while read thing url to 
 	do
-	    $curl_command -O$tmpdir/$thing $url
-	    $install_command $tmpdir/$thing $to/$thing
+	    if [ -z "$thing" ]; then
+		continue
+	    fi
+	    $curl_command -o $tmpdir/$thing $url
+	    if [ -n "$rm_command" ]; then
+		$rm_command $to/$thing
+	    else
+	        $install_command $tmpdir/$thing $to/$thing
+	    fi
 	done < $configfile
 	;;
     *)
