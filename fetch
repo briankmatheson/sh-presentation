@@ -2,19 +2,29 @@
 #
 #
 
+# declare some constants
 configfile=~/.fetch.conf
 tmpdir=/tmp/$0-$$
 install_command="sudo /usr/bin/install"
-curl_command="/usr/bin/curl -L"
+curl_command="/usr/bin/curl -qL"
+rm_command=''
+
+# make some functions
+cleanup() {
+    rm -rf $tmpdir
+}
 
 usage() {
-    echo
-    echo "Usage: $0 [-r|-t TMPDIR ]"
-    echo 
+    cat <<EOF
+
+Usage: $0 [-r|-t TMPDIR ]
+
+EOF
 }
 
 die() {
     echo ERROR:\ $* >&2
+    usage
     exit 1
 }
 
@@ -29,38 +39,46 @@ unpack() {
 }
 	
 
-mkdir -p $tmpdir
-trap "rm -rf $tmpdir" EXIT
-cd $tmpdir
-
-
 # parse some arguments
-case $* in
-    -r|--remove)
-	shift
-	rm_command='rm -f'
-	;;
-    -t|--tmpdir)
-	shift
-	tmpdir=`shift`
-	;;
-    -h|--help)
-	shift
-	usage
-	exit 0
-	;;
-esac	    
+while test -n "$*"; do
+    arg = `shift` || break
+    case $arg in
+	-r|--remove)
+	    rm_command='sudo rm -f'
+	    ;;
+	-t|--tmpdir)
+	    tmpdir=`shift` || die -t needs a following arg
+	    ;;
+	-h|--help)
+	    usage
+	    exit 0
+	    ;;
+	*)
+	    junk=`shift`
+	    ;;
+    esac
+done
 
-# anything else in $* is junk, so...
-if [ -n "$*" ]; then
-    die illegal command-line option $*
+# anything else in $junk?
+if [ -n "$junk" ]; then
+    die illegal command-line option $junk
 fi
+
+# run that cleanup function when we exit for any reason
+trap cleanup EXIT
+
+# perform the main action
+mkdir -p $tmpdir
+cd $tmpdir
+sudo pwd
 
 echo do we have enough space in tmpdir, $tmpdir?
 df -h $tmpdir
 
 echo can we write to it?
 touch $tmpdir/file || die can\'t write to $tmpdir
+
+echo 
 
 echo are we ready to replace the following?
 while read thing url to 
@@ -79,10 +97,11 @@ case $conn in
 	    if [ -z "$thing" ]; then
 		continue
 	    fi
-	    $curl_command -o $tmpdir/$thing $url
 	    if [ -n "$rm_command" ]; then
 		$rm_command $to/$thing
+		continue
 	    else
+	    $curl_command -o $tmpdir/$thing $url
 		base=`basename $thing`
 		unpack $tmpdir/$thing $base
 	        $install_command $tmpdir/$base $to/$base
