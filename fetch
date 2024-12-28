@@ -4,7 +4,7 @@
 
 # declare some constants
 configfile=~/.fetch.conf
-tmpdir=/tmp/$0-$$
+tmpdir=/tmp/`basename $0`-$$
 install_command="sudo /usr/bin/install"
 curl_command="/usr/bin/curl -qL"
 rm_command=''
@@ -41,7 +41,7 @@ unpack() {
 
 # parse some arguments
 while test -n "$*"; do
-    arg = `shift` || break
+    arg=`shift` || break
     case $arg in
 	-r|--remove)
 	    rm_command='sudo rm -f'
@@ -59,20 +59,20 @@ while test -n "$*"; do
     esac
 done
 
-# anything else in $junk?
+echo anything else in $junk?
 if [ -n "$junk" ]; then
     die illegal command-line option $junk
 fi
 
-# run that cleanup function when we exit for any reason
-trap cleanup EXIT
+if [ -r "$configfile" ]; then
+    sed 's/#.*//' <$configfile | grep '\W' | wc -l 
+else
+    die can\'t read $configfile
+fi
 
-# perform the main action
-mkdir -p $tmpdir
-cd $tmpdir
-sudo pwd
+mkdir -p $tmpdir || die can\t make $tmpdir
 
-echo do we have enough space in tmpdir, $tmpdir?
+echo enough space in tmpdir $tmpdir?
 df -h $tmpdir
 
 echo can we write to it?
@@ -80,8 +80,8 @@ touch $tmpdir/file || die can\'t write to $tmpdir
 
 echo 
 
-echo are we ready to replace the following?
-while read thing url to 
+echo are we ready to remove \(and replace\) the following?
+while sed 's/#.*//' | read thing url to 
 do
     if [ -z "$thing" ]; then
 	continue
@@ -92,20 +92,24 @@ done < $configfile
 read -p "Type 'yes' to continue: " conn
 case $conn in
     yes|Yes|YES)
-	while read thing url to 
+	echo ---
+	sed 's/#.*//' | while read thing url to 
 	do
 	    if [ -z "$thing" ]; then
 		continue
 	    fi
 	    if [ -n "$rm_command" ]; then
+		echo $rm_command $to/$thing
 		$rm_command $to/$thing
 		continue
 	    else
-	    $curl_command -o $tmpdir/$thing $url
+	        echo $curl_command -o $tmpdir/$thing $url
+		$curl_command -o $tmpdir/$thing $url
 		base=`basename $thing`
 		unpack $tmpdir/$thing $base
 	        $install_command $tmpdir/$base $to/$base
 	    fi
+	    echo
 	done < $configfile
 	;;
     *)
